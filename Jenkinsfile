@@ -94,7 +94,7 @@ pipeline {
                             checkout([$class: 'GitSCM',
                                 doGenerateSubmoduleConfigurations: false,
                                 extensions: [[$class: 'CleanCheckout']],
-                                branches: [[name: 'frr-7.2' ]],
+                                branches: [[name: 'master' ]],
                                 userRemoteConfigs: [[url: 'https://github.com/FRRouting/frr.git']]])
                         }
                     }
