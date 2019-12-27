@@ -69,11 +69,24 @@ def projectProperties = [
 properties(projectProperties)
 setDescription()
 
+node('Docker') {
+    stage('Define Agent') {
+        script {
+            // create container name on demand
+            def branchName = getGitBranchName()
+            if (branchName == "master") {
+                branchName = "current"
+            }
+            env.DOCKER_IMAGE = "vyos/vyos-build:" + branchName
+        }
+    }
+}
+
 pipeline {
     agent {
         docker {
-            args '--sysctl net.ipv6.conf.lo.disable_ipv6=0 -e GOSU_UID=1006 -e GOSU_GID=1006'
-            image 'vyos/vyos-build:crux'
+            args "--sysctl net.ipv6.conf.lo.disable_ipv6=0 -e GOSU_UID=1006 -e GOSU_GID=1006"
+            image "${env.DOCKER_IMAGE}"
             alwaysPull true
         }
     }
