@@ -114,6 +114,21 @@ pipeline {
                 }
             }
         }
+        stage('Apply additional patches') {
+            environment {
+                GIT_COMMITTER_NAME = 'jenkins'
+                GIT_COMMITTER_EMAIL = 'jenkins@vyos.net'
+            }
+            steps {
+                script {
+                    dir('frr') {
+                        sh '''
+                            curl -f -s https://patch-diff.githubusercontent.com/raw/FRRouting/frr/pull/5184.patch | git am
+                        '''
+                    }
+                }
+            }
+        }
         stage('Compile FRR') {
             steps {
                 script {
