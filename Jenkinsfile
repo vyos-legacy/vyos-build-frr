@@ -107,24 +107,9 @@ pipeline {
                             checkout([$class: 'GitSCM',
                                 doGenerateSubmoduleConfigurations: false,
                                 extensions: [[$class: 'CleanCheckout']],
-                                branches: [[name: 'frr-7.2' ]],
+                                branches: [[name: 'frr-7.3' ]],
                                 userRemoteConfigs: [[url: 'https://github.com/FRRouting/frr.git']]])
                         }
-                    }
-                }
-            }
-        }
-        stage('Apply additional patches') {
-            environment {
-                GIT_COMMITTER_NAME = 'jenkins'
-                GIT_COMMITTER_EMAIL = 'jenkins@vyos.net'
-            }
-            steps {
-                script {
-                    dir('frr') {
-                        sh '''
-                            curl -f -s https://patch-diff.githubusercontent.com/raw/FRRouting/frr/pull/5184.patch | git am
-                        '''
                     }
                 }
             }
