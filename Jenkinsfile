@@ -36,7 +36,7 @@ def isCustomBuild() {
     def gitURI = 'git@github.com:vyos/' + getGitRepoName()
     def httpURI = 'https://github.com/vyos/' + getGitRepoName()
 
-    return ! ((getGitRepoURL() == gitURI) || (getGitRepoURL() == httpURI))
+    return !((getGitRepoURL() == gitURI) || (getGitRepoURL() == httpURI)) || env.CHANGE_ID
 }
 
 def setDescription() {
@@ -61,9 +61,9 @@ def setDescription() {
     item.save()
 }
 
-/* Only keep the most recent builds. */
+/* Only keep the 10 most recent builds. */
 def projectProperties = [
-    [$class: 'BuildDiscarderProperty',strategy: [$class: 'LogRotator', numToKeepStr: '1']],
+    [$class: 'BuildDiscarderProperty',strategy: [$class: 'LogRotator', numToKeepStr: '10']],
 ]
 
 properties(projectProperties)
@@ -74,7 +74,13 @@ node('Docker') {
         script {
             // create container name on demand
             def branchName = getGitBranchName()
-            if (branchName == "master") {
+            // Adjust PR target branch name so we can re-map it to the proper
+            // Docker image. CHANGE_ID is set only for pull requests, so it is
+            // safe to access the pullRequest global variable
+            if (env.CHANGE_ID) {
+                branchName = "${env.CHANGE_TARGET}".toLowerCase()
+            }
+            if (branchName.equals("master")) {
                 branchName = "current"
             }
             env.DOCKER_IMAGE = "vyos/vyos-build:" + branchName
@@ -92,32 +98,37 @@ pipeline {
     }
     options {
         disableConcurrentBuilds()
-        timeout(time: 120, unit: 'MINUTES')
+        timeout(time: 60, unit: 'MINUTES')
         timestamps()
     }
-    environment {
-        DEBIAN_ARCH = sh(returnStdout: true, script: 'dpkg --print-architecture').trim()
-    }
     stages {
-        stage('Git Clone') {
-            parallel {
-                stage('FRR') {
-                    steps {
-                        dir('frr') {
-                            checkout([$class: 'GitSCM',
-                                doGenerateSubmoduleConfigurations: false,
-                                extensions: [[$class: 'CleanCheckout']],
-                                branches: [[name: 'stable/7.3' ]],
-                                userRemoteConfigs: [[url: 'https://github.com/FRRouting/frr.git']]])
-                        }
+        stage('Fetch') {
+            steps {
+                script {
+                    dir('build') {
+                        checkout scm
                     }
                 }
             }
         }
-        stage('Compile FRR') {
+        stage('Git Clone') {
+            steps {
+                dir('frr') {
+                    checkout([$class: 'GitSCM',
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [[$class: 'CleanCheckout']],
+                        branches: [[name: 'frr-7.3.1' ]],
+                        userRemoteConfigs: [[url: 'https://github.com/FRRouting/frr.git']]])
+                }
+            }
+        }
+        stage('Build') {
             steps {
                 script {
                     dir('frr') {
+                        def commitId = sh(returnStdout: true, script: 'git rev-parse --short=11 HEAD').trim()
+                        currentBuild.description = sprintf('Git SHA1: %s', commitId[-11..-1])
+
                         sh '''
                             ./tools/tarsource.sh -V
                             dpkg-buildpackage -us -uc -Ppkg.frr.rtrlib
@@ -188,3 +199,4 @@ pipeline {
         }
     }
 }
+
